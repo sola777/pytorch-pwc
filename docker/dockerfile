@@ -1,0 +1,102 @@
+FROM nvidia/cuda:9.0-cudnn7-devel
+MAINTAINER Hailin Jin <hljin@adobe.com>
+
+# Pick up some TF dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        iputils-ping \
+        apt-utils \
+        module-init-tools \
+        openssh-server \
+        vim \
+        build-essential \
+        curl \
+        libfreetype6-dev \
+        libpng12-dev \
+        libzmq3-dev \
+        pkg-config \
+        python2.7 \
+        python-dev \
+        python-pip \
+        python-setuptools \ 
+        python-virtualenv \ 
+        rsync \
+        software-properties-common \
+        wget \
+        unzip \
+        git \
+        htop \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+        ffmpeg \ 
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip2 --no-cache-dir install \
+        matplotlib \
+        numpy \
+        scipy \
+        sklearn \
+        Pillow \
+        opencv-python \
+        cupy
+
+RUN pip2 --no-cache-dir install http://download.pytorch.org/whl/cu90/torch-0.4.0-cp27-cp27mu-linux_x86_64.whl
+RUN pip2 install torchvision
+
+
+# Install NVidia driver
+RUN cd /tmp && \
+    curl -fsSL -O http://us.download.nvidia.com/XFree86/Linux-x86_64/384.98/NVIDIA-Linux-x86_64-384.98.run && \
+    sh NVIDIA-Linux-x86_64-384.98.run -s --no-kernel-module && \
+    rm NVIDIA-Linux-x86_64-384.98.run
+
+
+# Timezone
+#RUN timedatectl set-timezone US/Pacific
+RUN rm /etc/localtime
+RUN ln -s /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
+#RUN echo "America/Los_Angeles" > /etc/timezone
+#RUN dpkg-reconfigure --frontend noninteractive tzdata
+
+ARG username=hazhang
+ARG groupname=intern
+ARG uid=10343
+ARG gid=5001
+ARG HOME=/mnt/ilcompfad1/user/hazhang
+
+RUN addgroup -gid $gid $groupname
+RUN useradd -ms /bin/bash -u $uid -g $gid $username
+RUN mkdir /var/run/sshd
+RUN chown -R $username:$groupname /etc/ssh
+RUN usermod -d $HOME $username
+
+# Set up our notebook config.
+#COPY jupyter_notebook_config.py /home/$username/.jupyter/
+
+# Copy sample notebooks.
+#COPY notebooks /home/$username/notebooks
+
+# Jupyter has issues with being run directly:
+#   https://github.com/ipython/ipython/issues/7062
+# We just add a little wrapper script.
+#COPY run_jupyter.sh /home/hljin
+#RUN echo -e \#\!/bin/bash\\njupyter notebook > /home/$username/run_jupyter.sh
+
+# TensorBoard
+# EXPOSE 6006
+# IPython
+EXPOSE 2000
+
+WORKDIR "$HOME"
+
+#WORKDIR "/home/$username/notebooks"
+RUN mkdir /home/$username/.ssh
+RUN echo ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAzuiCsGWfep+8UtlLcqXcoK9vS7iAs8BRTuprKmY3Nqlbi4LQgiFADY/tqhtPMhwnQebbI6H/IZoPDqsuWoq/JkQS/KSDnPi75QRfqbiCZSOiP/zLkgr+XlW3GHZUyBW7FhtH/qZm/FZHk/+Q1J5/FwcS6wIS8zCXhtOGY80CobxG9Xqh7nmfAOCk8j1RQM2uzYWsGLLXu59J6zQikWyrJFMl049p+hiG+Ek1OPAcSM86Mqkl4sdhJNPg3LQH0ddZtOzPEPKQ97CuIeboHoEyioUQRnJQfzcVLkTT4s0q+6mx3CcoOHWrce94MM2I+Xw7+FTq71sTVVTka3VQ5Ktmiw== > /home/$username/.ssh/authorized_keys
+
+#RUN cd /home/$username && \
+#    chown -R $username:$groupname .jupyter .ssh notebooks run_jupyter.sh
+
+#CMD ["/home/$username/run_jupyter.sh"]
+CMD ["/usr/sbin/sshd", "-D", "-p", "2000"]
