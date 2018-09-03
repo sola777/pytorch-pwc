@@ -406,30 +406,58 @@ if __name__ == '__main__':
     
 
     frame_dir = sys.argv[1]
+    print(frame_dir)
     outfile = open(sys.argv[2], 'wb')
-    exit() 
+    mode = sys.argv[3]
     
     frame_sum = len(os.listdir(frame_dir))
-    img1 = PIL.Image.open(os.path.join(frame_dir, '{:05}.jpg'.format(10)))
+    img_refer = PIL.Image.open(os.path.join(frame_dir, '{:05}.jpg'.format(10)))
     flow_list = []
+    if mode == 'fb1':
+        step = 1
+    elif mode == 'fb5':
+        step = 5
+        
     for fid in range(frame_sum):
-#         if img1 is None:
-#             img1 = PIL.Image.open(os.path.join(frame_dir, '{:05}.jpg'.format(fid)))
-#         else:
-#             img1 = img2
+
         frame_path = os.path.join(frame_dir, '{:05}.jpg'.format(fid))
         if not os.path.exists(frame_path):
             break
-        img2 = PIL.Image.open(frame_path)
-                                  
-        print('Computing flow between frame ' + str(fid) + ' and frame ' + str(fid+1) + '...')
-        flow = compute_flow_pair(img1, img2).numpy()
-        print(flow.shape)
-        flow_list.append(flow)
+        img = PIL.Image.open(frame_path)
+        ### middle flow
+        if mode == 'mid':
+            flow = compute_flow_pair(img, img_refer).numpy()
+            flow_list.append(flow)
+            print('Computing flow for frame ' + str(fid) + '...')
+        ###
+        else:
+        ### forward backward flow
+            frame_path = os.path.join(frame_dir, '{:05}.jpg'.format(fid - step))
+            if not os.path.exists(frame_path):
+                flow_for = None
+            else:
+                img_for = PIL.Image.open(frame_path)
+                print('Computing forward flow for frame ' + str(fid) + '...')
+                flow_for = compute_flow_pair(img, img_for).numpy()
+
+            frame_path = os.path.join(frame_dir, '{:05}.jpg'.format(fid + step))
+            if not os.path.exists(frame_path):
+                flow_back = None
+            else:
+                img_back = PIL.Image.open(frame_path)
+                print('Computing backward flow for frame ' + str(fid) + '...')
+                flow_back = compute_flow_pair(img, img_back).numpy()
+
+            if flow_for is None:
+                flow_for = flow_back
+            if flow_back is None:
+                flow_back = flow_for
+            flow_list.append(flow_for)
+            flow_list.append(flow_back)
+        ###
+       
     flow_list = numpy.array(flow_list)
-    
     numpy.array(flow_list.shape, numpy.float32).tofile(outfile)
     numpy.array(flow_list, numpy.float32).tofile(outfile)
-#     numpy.save(sys.argv[2], numpy.array(flow_list), allow_pickle=False)
     outfile.close()
     
